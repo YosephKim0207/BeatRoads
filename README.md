@@ -35,7 +35,9 @@
      a. 적절한 비트 만들기 문제
       i. window를 통해 앞뒤 50개의 spectrum의 평균을 구하고 적절한 beat 판별 ratio를 곱함
       >> i.1 현재 스펙트럼의 값이 i의 결과보다 크다면 beat로 간주
+      >> 
       >> i.2 단 이전 비트 생성 시간보다 일정 시간 이후부터 생성 가능
+      >> 
       >> i.3 추가할 사항으로 노래의 bpm에 따른 판별식도 고려
 
       ii. [기존의 코드](https://medium.com/giant-scam/algorithmic-beat-mapping-in-unity-real-time-audio-analysis-using-the-unity-api-6e9595823ce4) 활용시 해당 샘플의 비트는 잘 뽑아내지만 비트가 너무 많이 생성된다
