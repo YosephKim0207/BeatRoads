@@ -1,5 +1,5 @@
-# Created by https://www.toptal.com/developers/gitignore/api/macos,unity,visualstudio
-# Edit at https://www.toptal.com/developers/gitignore?templates=macos,unity,visualstudio
+# Created by https://www.toptal.com/developers/gitignore/api/macos,unity,microsoftoffice,visualstudio
+# Edit at https://www.toptal.com/developers/gitignore?templates=macos,unity,microsoftoffice,visualstudio
 
 ### macOS ###
 # General
@@ -33,6 +33,27 @@ Temporary Items
 ### macOS Patch ###
 # iCloud generated files
 *.icloud
+
+### MicrosoftOffice ###
+*.tmp
+
+# Word temporary
+~$*.doc*
+
+# Word Auto Backup File
+Backup of *.doc*
+
+# Excel temporary
+~$*.xls*
+
+# Excel Backup File
+*.xlk
+
+# PowerPoint temporary
+~$*.ppt*
+
+# Visio autosave temporary files
+*.~vsd*
 
 ### Unity ###
 # This .gitignore file should be placed at the root of your Unity project directory
@@ -72,7 +93,6 @@ ExportedObj/
 *.unityproj
 *.sln
 *.suo
-*.tmp
 *.user
 *.userprefs
 *.pidb
@@ -499,4 +519,4 @@ FodyWeavers.xsd
 ### VisualStudio Patch ###
 # Additional files built by Visual Studio
 
-# End of https://www.toptal.com/developers/gitignore/api/macos,unity,visualstudio
+# End of https://www.toptal.com/developers/gitignore/api/macos,unity,microsoftoffice,visualstudio
