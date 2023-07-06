@@ -1,205 +1,136 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEditor;
+using System.IO;
+
+
+public class NoteInfos
+{
+    public List<NoteInfo> noteInfos;
+}
 
 public class RealTimeNoteMaker : MonoBehaviour
 {
+    [SerializeField]
+    TextAsset jsonAsset;
 
-    public float beatCheck = 1.0f;
+    [SerializeField]
+    GameObject notePrefab;
+
+    [SerializeField]
+    float noteScaleRatio = 15.0f;
 
     AudioSource audioSource;
-    float[] curSpectrums;
-    float[] prevSpectrums;
-    int sampleRate;
+    NoteInfos noteInfos;
+    NoteInfo noteInfo;
+    Vector3 noteObjectPosition = new Vector3();
+    Vector3 noteScale = new Vector3();
+    float noteMakerZPos;
+    int prevNoteInfoIdx;
+    int newNoteInfoIdx;
+    float prevNoteStartTime;
+    float newNoteStartTime;
+    float curTime = 0.0f;
+    float noteStartTime = 0.0f;
+    float noteMoveTime = 2.0f;
+    float prevNoteThroghTime = 2.0f;
+    float prevNoteMakeTime;
 
-    Vector3 originVector;
-
-    public List<float> spectralDifferList;
-    public int beatCheckWindow = 50;
-    public int windowMidIdx;
-    public float beatCheckRatio = 1.6f;
-
-    // TODO TEST
-    public GameObject notePrefab;
-    public int standardIdx;
-    List<float[]> spectrumsList;
-    List<float> scaledSpectrumSum = new List<float>();
-    float prevTime = 0.0f;
-    public float curTime = 0.0f;
-    public float minNoteSwitchTime = 0.5f;  // 노트가 변경되는 최소 시간. 이것보다는 노트 변경 주기가 커야 한다
-    List<float> totalBeatTime = new List<float>();
-    public float length = 100.0f;
-    int NotePos = 0;
-    public bool playMusic = false;
-    Camera camera;
+    GameObject judgeObject;
+    Vector3 judge = new Vector3();
 
 
-    // Start is called before the first frame update
-    void Start()
+    private void Awake()
     {
+        noteInfos = JsonUtility.FromJson<NoteInfos>(jsonAsset.text);
+        noteObjectPosition = Vector3.zero;
+        noteScale = Vector3.one;
+        Camera.main.transform.position = new Vector3(noteInfos.noteInfos[0].noteGridPosition, 5.0f, 0.0f);
+        Camera.main.transform.LookAt(this.transform);
+        noteMakerZPos = this.transform.position.z;
         audioSource = GetComponent<AudioSource>();
-        if(audioSource == null)
-        {
-            Debug.LogWarning($"{name} : audio is NULL!");
-        }
-
-        curSpectrums = new float[1024];
-        prevSpectrums = new float[1024];
-        sampleRate = AudioSettings.outputSampleRate;
-        originVector = this.transform.localScale;
-
-        spectralDifferList = new List<float>();
-        windowMidIdx = beatCheckWindow / 2;
-
-
-        spectrumsList = new List<float[]>();
-
-        // TODO Test
-        camera = GameObject.Find("Main Camera").GetComponent<Camera>();
-
+        audioSource.playOnAwake = false;
+        noteStartTime = noteInfos.noteInfos[0].startTime;
+        Debug.Log(noteStartTime);
     }
+
+    private void Start()
+    {
+        judgeObject = GameObject.Find("JudgeLine");
+    }
+
 
     // Update is called once per frame
     void Update()
     {
-        if (audioSource)
-        {   
-            curSpectrums.CopyTo(prevSpectrums, 0);
-            audioSource.GetSpectrumData(curSpectrums, 0, FFTWindow.BlackmanHarris);
 
-            // TODO Test
-            spectrumsList.Add(curSpectrums);
-            float sum = 0;
-            for(int i = 0; i < curSpectrums.Length; ++i)
+        // 먼저 노트가 생성된다
+        // 노트가 플레이어 위치까지 오는 시점이 비트가 치는 시간이어야 한다
+        // JudgeLine 에 충돌판정 만들어서 충돌한 오브젝트 생성 시간이랑 충돌시간 구해서 이동시간이랑 속도 구하기
+
+        curTime += Time.deltaTime;
+
+        //Debug.Log($"curTime{}")
+        if (!audioSource.isPlaying && curTime > 2.0f)
+        {
+            Debug.Log("Audio Play");
+            audioSource.Play();
+            curTime = 0.0f;
+        }
+
+        if (audioSource.time - prevNoteMakeTime > (prevNoteThroghTime))
+        {
+            if (newNoteInfoIdx >= noteInfos.noteInfos.Count)
             {
-                sum += curSpectrums[i];
+                return;
             }
-            scaledSpectrumSum.Add(sum);
-            //if (spectrumsList.Count >= beatCheckWindow)
-            //{
-            //    if (!playMusic)
-            //    {
-            //        audioSource.Play();
-            //        playMusic = true;
-            //    }
-                
-            //    float avrSpectrum = CheckAroundSpectrum(standardIdx, 1024);
+            prevNoteStartTime = newNoteStartTime;
+            noteInfo = noteInfos.noteInfos[newNoteInfoIdx];
+            newNoteStartTime = noteInfo.startTime;
 
-            //    if (avrSpectrum * beatCheckRatio < scaledSpectrumSum[standardIdx])
-            //    {
-                    
-            //        if (curTime - prevTime > minNoteSwitchTime)
-            //        {
-            //            totalBeatTime.Add(curTime);
-                        
-            //            GameObject go = Instantiate(notePrefab, new UnityEngine.Vector3(standardIdx % 3, 0, curTime * length), UnityEngine.Quaternion.identity);
-                        
-            //            //Debug.Log(curTime);
-            //        }
+            // scale된 노트들이 RealTimeNoteMaker을 넘지 않는 동일선상에 위치하도록 생성 position를 scale 기준으로 보정
+            noteObjectPosition.x = noteInfo.noteGridPosition;
+            Vector3 noteObjInitPos = new Vector3(noteInfo.noteGridPosition, 0.0f, noteMakerZPos);
+            float judgeDist = Vector3.Distance(judge, noteObjInitPos);
 
-            //    }
+            float noteSpeed = (judgeDist / noteMoveTime);
 
-            //    standardIdx++;
-            //}
+            //float noteLength = (noteInfo.endTime - noteInfo.startTime) * noteScaleRatio;
+            //float noteLength = (noteInfo.endTime - noteInfo.startTime) / noteSpeed;
+            float noteLength = (newNoteStartTime - prevNoteStartTime) * noteSpeed;
+            //Debug.Log($"{i}'s NoteLength : {noteLength}");
+            noteObjectPosition.z = noteMakerZPos + (noteLength / 4.0f);
+            //Debug.Log($"{i}'s z Pos : {noteMakerZPos + (noteLength / 4.0f)}");
+            GameObject noteObject = Object.Instantiate(notePrefab, noteObjectPosition, Quaternion.identity);
+            prevNoteMakeTime = audioSource.time;
 
-            //transform.localScale = originVector * curSpectrums[4] * 10;
-
-            float increase = SpectrumIncrease();
-            spectralDifferList.Add(increase);
-            if(spectralDifferList.Count >= beatCheckWindow)
+            if (noteObject)
             {
-                float check = CheckBeat(windowMidIdx);
-                //Debug.Log($"avr Value : {check}");
-                //Debug.Log($"cur Value : {increase}");
 
-                if (check < increase)
-                {
-                    prevTime = curTime;
-                    curTime = audioSource.time;
-                    //if(curTime - prevTime > minNoteSwitchTime)
-                    //{
-                        Vector3 prevCamPos = camera.transform.position;
-                        Vector3 newCampos = new Vector3(1.0f, 10.0f, curTime * 1.5f);
-                        Debug.Log($"{audioSource.time} : BEAT!");
-                        GameObject go = Instantiate(notePrefab, new UnityEngine.Vector3(windowMidIdx % 3, 0, curTime * length), UnityEngine.Quaternion.identity);
-                        camera.transform.position = Vector3.Lerp(prevCamPos, newCampos, 0.2f);
-                        camera.transform.LookAt(new Vector3(1.0f, go.transform.position.y, go.transform.position.z));
-                    //}
-                }
+                judge.x = noteObjectPosition.x;
+                judge.y = 0.0f;
+                judge.z = judgeObject.transform.position.z;
+                //float judgeDist = Vector3.Distance(judge, noteObjectPosition);
+                //float noteArriveTime = noteInfo.endTime - noteInfo.startTime;
+                Note note = noteObject.GetComponent<Note>();
+                note.halfLength = noteLength;
+                note.SetSpeed = noteSpeed;
+                note.endTime = noteInfo.endTime;
+                note.startTime = noteInfo.startTime;
 
-                windowMidIdx++;
+                noteScale.z = noteLength / 2.0f;
+                //Debug.Log($"{i}'s scale : {noteLength / 2.0f}");
+                noteObject.transform.localScale = noteScale;
+                prevNoteThroghTime = noteLength / noteSpeed;
+                curTime = 0.0f;
+                // 노트 오브젝트 풀 사용시 용도
+                //noteObject.SetActive(true);
+
+                ++newNoteInfoIdx;
             }
 
-            
-        }
-    }
-
-    // TODO Test
-    float CheckAroundSpectrum(int standardIdx, int spectrumSize)
-    {
-        int fftSpectrumSize = spectrumSize / 2;
-        int windowStartIdx = Mathf.Max(0, standardIdx - beatCheckWindow / 2);
-        int windowEndIdx = Mathf.Min(spectralDifferList.Count - 1, standardIdx + beatCheckWindow / 2);
-
-        float sum = 0.0f;
-        for (int i = windowStartIdx; i < windowEndIdx; i++)
-        {
-            sum += scaledSpectrumSum[i];
         }
 
-
-        return (sum / (windowEndIdx - windowStartIdx));
-    }
-    void MakeNote()
-    {
-        float str = 0.0f;
-        float ed = 0.0f;
-        float length = 0.0f;
-        for (int i = 0; i < totalBeatTime.Count - 1; i++)
-        {
-            str = totalBeatTime[i];
-            ed = totalBeatTime[i + 1];
-            length += (ed - str) * 3;
-
-            GameObject go = Instantiate(notePrefab, new UnityEngine.Vector3(length, 0, i % 3), UnityEngine.Quaternion.identity);
-            //go.transform.localScale = new UnityEngine.Vector3(Mathf.Max(1.0f, (ed - str) * 5), 1, 1);
-            go.transform.localScale = new UnityEngine.Vector3(1, 1, 1);
-        }
-    }
-
-    float SpectrumIncrease()
-    {
-        //Debug.Log($"CurSpectrum : {curSpectrums[4]}");
-        //Debug.Log($"PrevSpectrum : {prevSpectrums[4]}");
-        //Debug.Log($"Differ : {curSpectrums[4] - prevSpectrums[4]}");
-
-        float sum = 0.0f;
-        for(int i = 0; i < 1024; i++)
-        {   
-            sum += Mathf.Max(0.0f, (curSpectrums[i] - prevSpectrums[i]));
-        }
-
-        //if(sum > 0.0f)
-        //{
-        //    Debug.Log($"Spectrum Increase : {sum}");
-        //}
-        
-
-        return sum;
-    }
-
-    float CheckBeat(int midIdx)
-    {
-        int windowStartIdx = Mathf.Max(0, midIdx - beatCheckWindow / 2);
-        int windowEndIdx = Mathf.Min(spectralDifferList.Count - 1, midIdx + beatCheckWindow / 2);
-
-        float sum = 0.0f;
-        for(int i = windowStartIdx; i < windowEndIdx; i++)
-        {
-            sum += spectralDifferList[i];
-        }
-
-        return (sum / (windowEndIdx - windowStartIdx)) * beatCheckRatio;
     }
 }

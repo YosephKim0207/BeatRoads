@@ -5,6 +5,7 @@ using UnityEngine;
 using System.Numerics;
 using System.Threading;
 using DSPLib;
+using System.IO;
 
 // 230701 TODO
 // 일정 시간 혹은 프레임 동안의 각 음역대별 평균 값을 구해 저장한다
@@ -12,72 +13,62 @@ using DSPLib;
 // 일단 비트에 대한 사전적 정의를 보고 audiacity로 비트 구분을 전체 볼륨으로 하는, 특정 음역대가 튀는걸로 하는지 확인해보기
 // 각 음역대별 평균이랑 스펙트럼당 평균 다 구해보고 비교 / 연구해보기
 
-
-public class PreNoteMaker : MonoBehaviour
+[System.Serializable]
+public class NoteToJson
 {
-    public GameObject notePrefab;
+    public List<NoteInfo> noteInfos;
+}
+
+[System.Serializable]
+public class NoteInfo
+{
+    public float startTime;
+    public float endTime;
+    public int noteGridPosition;
+}
+
+public class PreNoteMaker
+{
     // 비트 판단을 위한 변수들
-    public int beatCheckWindowSize = 50;    // 해당 스펙트럼 기준 앞뒤로 비교할 스펙트럼의 개수
-    public float beatCheckRatio = 2.0f;
-    // TODO
-    // bpm에 따라 minNoteSwitchTime이 변하도록 하기
-    public float minNoteSwitchTime = 0.3f;  // 노트가 변경되는 최소 시간. 이것보다는 노트 변경 주기가 커야 한다
-    public int noteDecisionWindowSize = 3;
+    float beatCheckRatio = 2.0f;
+    public float SetBeatCheckRatio { set { beatCheckRatio = value; } }
+    float minNoteSwitchTime = 0.3f;  // 노트가 변경되는 최소 시간. 이것보다는 노트 변경 주기가 커야 한다
+    public float SetMinNoteSwitchTime { set { minNoteSwitchTime = value; } }
+    int noteDecisionWindowSize = 3;
+    int notePositionGridNumber = 5;
+    public int SetNotePositionGridNumber { set { notePositionGridNumber = value; } }
 
-    public int notePositionGridNumber = 3;
+    AudioClip audioClip;
+    public AudioClip SetAudioSourceClip { set { audioClip = value; } }
 
+    
+    List<SpectralFluxInfo> totalSpectrumChunk;
 
-    AudioSource audioSource;
+    [SerializeField]
+    List<SpectralFluxInfo> totalBeat;
 
-    int spectrumSize = 1024;
-    float[] curSpectrumChunk;
-    float[] prevSpectrumChunk;
-    List<SpectralFluxInfo> totalSpectrumChunk = new List<SpectralFluxInfo>();
-    public List<SpectralFluxInfo> totalBeat = new List<SpectralFluxInfo>();
-    public List<NoteInfo> totalNote = new List<NoteInfo>();
+    [SerializeField]
+    List<NoteInfo> totalNote;
 
-    Camera camera;
-    int noteIdx = 0;
-    float EPSILON = 0.001f;
-
-    //TODO
-    float time = 0.0f;
-    bool convertFinish = false;
-
-    // 구조체로 만들면 스택오버플로우 날까?
     public class SpectralFluxInfo
     {
         public float time;
         public float spectralFlux;
         public float beatStandard;
-        public float prunedSpectralFlux; // 생략가능
+        public float prunedSpectralFlux;
         public bool isPeak;
     }
 
-    public class NoteInfo
+    public bool RunPreNoteMaker(ref string savePath)
     {
-        public float startTime;
-        public float endTime;
-        public int noteGridPosition;
-    }
+        if(audioClip)
+        {   
+            int clipChannels = audioClip.channels;
+            int sampleCount = audioClip.samples;
+            int sampleRate = audioClip.frequency;
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        audioSource = GetComponent<AudioSource>();
-        camera = GameObject.Find("Main Camera").GetComponent<Camera>();
-
-        if (audioSource)
-        {
-            int clipChannels = audioSource.clip.channels;
-            int sampleCount = audioSource.clip.samples;
-            int sampleRate = audioSource.clip.frequency;
-
-            float[] audioSamplesByChannel = new float[sampleCount * clipChannels];
-            curSpectrumChunk = new float[spectrumSize];
-            prevSpectrumChunk = new float[spectrumSize];
-
-            audioSource.clip.GetData(audioSamplesByChannel, 0);
+            float[] audioSamplesByChannel = new float[sampleCount * clipChannels];            
+            audioClip.GetData(audioSamplesByChannel, 0);
 
             // audioSamplesByChannel에는 각 채널에 대한 샘플이 모두 저장 
             // 따라서 스테레오 채널인 경우 샘플을 하나로 합치는 작업이 필요하다
@@ -87,40 +78,21 @@ public class PreNoteMaker : MonoBehaviour
             // 실시간 처리에는 AudioSource.GetSpectrumData를 통해 퓨리에 변환을 진행, 음역대를 추출할 수 있다
             // 하지만 유니티에는 전체 샘플에 대해 퓨리에 변환을 수행할 수 있는 함수가 없다
             // 따라서 외부 함수 - DSPLib - 를 사용한다
-            double[] sampleChunk = new double[spectrumSize];
             //Thread thread = new Thread(() => DoFFT(ref audioSamples, ref sampleChunk, sampleRate, spectrumSize));
             //thread.Start();
-            DoFFT(ref audioSamples, ref sampleChunk, sampleRate);
-            int beatCheckWindowSize = 50;
+            DoFFT(ref audioSamples, sampleRate);
+            int beatCheckWindowSize = 50;   // 해당 스펙트럼 기준 앞뒤로 비교할 스펙트럼의 개수
             ExtractBeat(beatCheckWindowSize);
             MakeNote();
+            bool saveSuccess = SaveNote(ref savePath);
+
+            return saveSuccess;
         }
-    }
-
-    void Update()
-    {
-        if (convertFinish)
+        else
         {
-            float playTime = audioSource.time;
-            if (totalNote.Count > noteIdx)
-            {
-                NoteInfo noteInfo = totalNote[noteIdx];
-                //Debug.Log($"playTime : {playTime}, noteTime : {noteInfo.startTime}");
-                //Debug.Log($"Abs : {Mathf.Abs(noteInfo.startTime - playTime)}");
-                
+            Debug.Log("RunPreNoteMaker False : audioClip is null");
 
-                if (noteInfo.startTime < playTime)
-                {
-                    MakeNoteObj(playTime, ref noteInfo);
-                    ++noteIdx;
-                }
-                //time += Time.deltaTime;
-                //if (time > 0.5f)
-                {
-                    
-                    //time = 0.0f;
-                }
-            }
+            return false;
         }
     }
 
@@ -153,9 +125,13 @@ public class PreNoteMaker : MonoBehaviour
         return ((1f / (float)sampleRate) * index) * spectrumSize;
     }
 
-    void DoFFT(ref float[] audioSamples, ref double[] sampleChunk, int sampleRate)
+    void DoFFT(ref float[] audioSamples, int sampleRate)
     {
-           
+        totalSpectrumChunk = new List<SpectralFluxInfo>();
+        int spectrumSize = 1024;
+        double[] sampleChunk = new double[spectrumSize];
+        float[] curSpectrumChunk = new float[spectrumSize];
+        float[] prevSpectrumChunk = new float[spectrumSize];
         int totalSampleCount = audioSamples.Length / spectrumSize;
         FFT fft = new FFT();
         fft.Initialize((uint)spectrumSize);
@@ -163,7 +139,6 @@ public class PreNoteMaker : MonoBehaviour
         // 아래의 출처로부터 참고
         // https://medium.com/giant-scam/algorithmic-beat-mapping-in-unity-preprocessed-audio-analysis-d41c339c135a
         Debug.Log(string.Format("Processing {0} time domain samples for FFT", totalSampleCount));
-        sampleChunk = new double[spectrumSize];
         for (int i = 0; i < totalSampleCount; ++i)
         {
             // 3.
@@ -179,10 +154,7 @@ public class PreNoteMaker : MonoBehaviour
             // Perform the FFT and convert output (complex numbers) to Magnitude
             Complex[] fftSpectrum = fft.Execute(scaledSpectrumChunk);
             double[] scaledFFTSpectrumDoubleType = DSPLib.DSP.ConvertComplex.ToMagnitude(fftSpectrum);
-            scaledFFTSpectrumDoubleType = DSP.Math.Multiply(scaledFFTSpectrumDoubleType, scaleFactor);
-            //Debug.Log($"scaledFFTSpectrum Size : {scaledFFTSpectrumDoubleType.Length}");
-
-            
+            scaledFFTSpectrumDoubleType = DSP.Math.Multiply(scaledFFTSpectrumDoubleType, scaleFactor);        
 
             curSpectrumChunk.CopyTo(prevSpectrumChunk, 0);
             Array.ConvertAll(scaledFFTSpectrumDoubleType, x => (float)x).CopyTo(curSpectrumChunk, 0);
@@ -204,8 +176,6 @@ public class PreNoteMaker : MonoBehaviour
             // 9.
             // Send our magnitude data off to our Spectral Flux Analyzer to be analyzed for peaks
 
-            //preProcessedSpectralFluxAnalyzer.analyzeSpectrum(Array.ConvertAll(scaledFFTSpectrum, x => (float)x), curSongTime);
-
             totalSpectrumChunk.Add(spectralFluxInfo);
         }
 
@@ -215,7 +185,7 @@ public class PreNoteMaker : MonoBehaviour
 
     void ExtractBeat(int beatCheckWindowSize)
     {
-        //Debug.Log($"TotlaSpectrumChunk Size : {totalSpectrumChunk.Count}");
+        totalBeat = new List<SpectralFluxInfo>();
         for (int i = 0; i < totalSpectrumChunk.Count; i++)
         {
             float avrSpectrum = CheckAroundSpectrum(i, beatCheckWindowSize);
@@ -275,23 +245,21 @@ public class PreNoteMaker : MonoBehaviour
         return isPeak;
     }
 
-    // TODO
-    // 이전 노트를 기준으로 standardTime 이후의 비트 A를 추출
-    // A비트를 기준으로 좌우 window탐색
-    // minNoteSwitchTime 이후면서 && 시간차이가 이전의 노트보다 현재의 비트A와 가깝고 && pruneSpectralFlux가 가장 높은 비트 확인
-    // 해당 비트를 노트로 생성 
     void MakeNote()
     {
-        //int curBeatIdx = 0;
         int prevBeatIdx = 0;
 
         float curBeatTime = 0.0f;
         float prevBeatTime = 0.0f;
 
         int curNoteIdx = 0;
+        Debug.Log($"Make Note Position Grid : {notePositionGridNumber}");
         int curNotePos = notePositionGridNumber / 2;
         int prevNotePos = notePositionGridNumber / 2;
 
+        Debug.Log($"Cur note pos : {curNotePos}");
+
+        totalNote = new List<NoteInfo>();
         for (int curBeatIdx = 0; curBeatIdx < totalBeat.Count; ++curBeatIdx)
         //while(curBeatIdx < totalBeat.Count)
         {
@@ -316,11 +284,9 @@ public class PreNoteMaker : MonoBehaviour
             ++curNoteIdx;
         }
 
-        totalNote[totalNote.Count - 1].endTime = audioSource.clip.length;
+        totalNote[totalNote.Count - 1].endTime = audioClip.length;
         Debug.Log("Make Note done");
         Debug.Log($"Total Note count : {totalNote.Count}");
-        convertFinish = true;
-        audioSource.Play();
     }
 
     // minNoteSwitchTime 이후를 기준으로 좌우 탐색 && 시간차이가 이전의 노트보다 현재의 비트A와 가깝고 && pruneSpectralFlux가 가장 높은 비트 확인
@@ -340,7 +306,7 @@ public class PreNoteMaker : MonoBehaviour
         }
         int noteIdx = standardIdx;
         int windowStartIdx = Mathf.Max(0, noteIdx - noteDecisionWindowSize / 2);
-        int windowEndIdx = Mathf.Min(totalBeat.Count - 0, noteIdx + noteDecisionWindowSize / 2);
+        int windowEndIdx = Mathf.Min(totalBeat.Count - 1, noteIdx + noteDecisionWindowSize / 2);
         
         for (int i = windowStartIdx; i < windowEndIdx; ++i)
         {
@@ -391,20 +357,30 @@ public class PreNoteMaker : MonoBehaviour
         return newNotePos;
     }
 
-    void MakeNoteObj(float playTime, ref NoteInfo noteInfo)
-    {
-        UnityEngine.Vector3 prevCamPos = camera.transform.position;
-        float curZPos = (noteInfo.startTime + ((noteInfo.endTime - noteInfo.startTime) / 2)) * 5.0f;
-        GameObject go = Instantiate(notePrefab,
-            new UnityEngine.Vector3(noteInfo.noteGridPosition, 0.0f, curZPos), UnityEngine.Quaternion.identity);
-        go.transform.localScale = new UnityEngine.Vector3(1.0f, 1.0f, (noteInfo.endTime - noteInfo.startTime) * 10.0f);
-        UnityEngine.Vector3 newCampos = new UnityEngine.Vector3(1.0f, 10.0f, go.transform.position.z - 5.0f);
-        camera.transform.position = UnityEngine.Vector3.Lerp(prevCamPos, newCampos, 0.2f);
-        camera.transform.LookAt(new UnityEngine.Vector3(1.0f, go.transform.position.y, go.transform.position.z));
-        Debug.Log($"Note StartTime : {noteInfo.startTime}");
-        Debug.Log($"Note EndTIme : {noteInfo.endTime}");
-        Debug.Log($"Note Length : {(noteInfo.endTime - noteInfo.startTime) * 50.0f}");
-        Debug.Log($"NoteTime : {playTime} - {noteIdx} / {totalNote.Count}");
 
+    bool SaveNote(ref string savePath)
+    {
+        bool saveSuccess = false;
+
+        NoteToJson noteToJson = new NoteToJson();
+        noteToJson.noteInfos = new List<NoteInfo>(totalNote);
+        string json = JsonUtility.ToJson(noteToJson);
+        Debug.Assert(json != null, "Make json fail");
+        if(json == null)
+        {
+            return saveSuccess;
+        }
+
+        File.WriteAllText(savePath, json);
+        FileInfo fileInfo = new FileInfo(savePath);
+        if (fileInfo.Exists)
+        {
+            saveSuccess = true;
+            Debug.Log($"Save to {savePath + audioClip.name}");
+        }
+
+        Debug.Assert(saveSuccess, "Make note file fail");
+
+        return saveSuccess;
     }
 }
