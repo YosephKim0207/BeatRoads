@@ -378,7 +378,7 @@ public class PreNoteMaker
         noteToJson.noteInfos = new List<NoteInfo>(totalNote);
         string json = JsonUtility.ToJson(noteToJson);
         Debug.Assert(json != null, "Make json fail");
-        if (json == null)
+        if(json == null)
         {
             return saveSuccess;
         }

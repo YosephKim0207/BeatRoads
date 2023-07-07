@@ -31,7 +31,7 @@ public class Note : MonoBehaviour
         //camera = Camera.main;
         dest.y = 0.0f;
         //dest.z = Camera.main.transform.position.z - 100.0f;
-        dest.z = Camera.main.transform.position.z;
+        dest.z = Camera.main.transform.position.z - 3000.0f;
 
     }
 
