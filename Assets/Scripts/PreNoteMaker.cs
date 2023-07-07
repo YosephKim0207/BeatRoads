@@ -13,6 +13,14 @@ using System.IO;
 // 일단 비트에 대한 사전적 정의를 보고 audiacity로 비트 구분을 전체 볼륨으로 하는, 특정 음역대가 튀는걸로 하는지 확인해보기
 // 각 음역대별 평균이랑 스펙트럼당 평균 다 구해보고 비교 / 연구해보기
 
+#region Test
+[System.Serializable]
+public class ToJson
+{
+    public List<SpectralFluxInfo> noteInfos;
+}
+#endregion
+
 [System.Serializable]
 public class NoteToJson
 {
@@ -29,6 +37,10 @@ public class NoteInfo
 
 public class PreNoteMaker
 {
+    #region Test
+    SpectralFluxAnalyzer preProcessedSpectralFluxAnalyzer = new SpectralFluxAnalyzer();
+    #endregion
+
     // 비트 판단을 위한 변수들
     float beatCheckRatio = 2.0f;
     public float SetBeatCheckRatio { set { beatCheckRatio = value; } }
@@ -366,7 +378,7 @@ public class PreNoteMaker
         noteToJson.noteInfos = new List<NoteInfo>(totalNote);
         string json = JsonUtility.ToJson(noteToJson);
         Debug.Assert(json != null, "Make json fail");
-        if(json == null)
+        if (json == null)
         {
             return saveSuccess;
         }
@@ -383,4 +395,133 @@ public class PreNoteMaker
 
         return saveSuccess;
     }
+
+
+    #region 비교용 코드
+    //public void getFullSpectrumThreaded()
+    //{
+    //    int numTotalSamples = audioClip.samples;
+    //    float[] multiChannelSamples = new float[audioClip.samples * audioClip.channels];
+    //    int numChannels = audioClip.channels;
+    //    float clipLength = audioClip.length;
+    //    try
+    //    {
+    //        // 1.
+    //        // We only need to retain the samples for combined channels over the time domain
+    //        float[] preProcessedSamples = new float[numTotalSamples];
+
+    //        int numProcessed = 0;
+    //        float combinedChannelAverage = 0f;
+    //        for (int i = 0; i < multiChannelSamples.Length; i++)
+    //        {
+    //            combinedChannelAverage += multiChannelSamples[i];
+
+    //            // Each time we have processed all channels samples for a point in time, we will store the average of the channels combined
+    //            if ((i + 1) % numChannels == 0)
+    //            {
+    //                preProcessedSamples[numProcessed] = combinedChannelAverage / numChannels;
+    //                numProcessed++;
+    //                combinedChannelAverage = 0f;
+    //            }
+    //        }
+
+    //        Debug.Log("Combine Channels done");
+    //        Debug.Log(preProcessedSamples.Length);
+
+    //        // 2.
+    //        // Once we have our audio sample data prepared, we can execute an FFT to return the spectrum data over the time domain
+    //        int spectrumSampleSize = 1024;
+    //        int iterations = preProcessedSamples.Length / spectrumSampleSize;
+
+    //        FFT fft = new FFT();
+    //        fft.Initialize((UInt32)spectrumSampleSize);
+
+    //        Debug.Log(string.Format("Processing {0} time domain samples for FFT", iterations));
+    //        double[] sampleChunk = new double[spectrumSampleSize];
+    //        for (int i = 0; i < iterations; i++)
+    //        {
+    //            // 3.
+    //            // Grab the current 1024 chunk of audio sample data
+    //            Array.Copy(preProcessedSamples, i * spectrumSampleSize, sampleChunk, 0, spectrumSampleSize);
+
+    //            // 4.
+    //            // Apply our chosen FFT Window
+    //            double[] windowCoefs = DSP.Window.Coefficients(DSP.Window.Type.Hanning, (uint)spectrumSampleSize);
+    //            double[] scaledSpectrumChunk = DSP.Math.Multiply(sampleChunk, windowCoefs);
+    //            double scaleFactor = DSP.Window.ScaleFactor.Signal(windowCoefs);
+
+    //            // Perform the FFT and convert output (complex numbers) to Magnitude
+    //            Complex[] fftSpectrum = fft.Execute(scaledSpectrumChunk);
+    //            double[] scaledFFTSpectrum = DSPLib.DSP.ConvertComplex.ToMagnitude(fftSpectrum);
+    //            scaledFFTSpectrum = DSP.Math.Multiply(scaledFFTSpectrum, scaleFactor);
+
+    //            // These 1024 magnitude values correspond (roughly) to a single point in the audio timeline
+    //            float curSongTime = getTimeFromIndex(i) * spectrumSampleSize;
+
+    //            // 9.
+    //            // Send our magnitude data off to our Spectral Flux Analyzer to be analyzed for peaks
+
+    //            preProcessedSpectralFluxAnalyzer.analyzeSpectrum(Array.ConvertAll(scaledFFTSpectrum, x => (float)x), curSongTime);
+    //        }
+
+
+    //        Debug.Log("Spectrum Analysis done");
+    //        Debug.Log("Background Thread Completed");
+
+    //        for (int i = 1; i < preProcessedSpectralFluxAnalyzer.peakList.Count; ++i)
+    //        {
+    //            preProcessedSpectralFluxAnalyzer.peakList[i - 1].endTime = preProcessedSpectralFluxAnalyzer.peakList[i].startTime;
+    //        }
+
+    //        preProcessedSpectralFluxAnalyzer.peakList[preProcessedSpectralFluxAnalyzer.peakList.Count - 1].endTime = audioClip.length;
+
+    //        Debug.Log("Make Note using onlineCode done");
+    //        Debug.Log($"Total Note count : {preProcessedSpectralFluxAnalyzer.peakList.Count}");
+    //    }
+    //    catch (Exception e)
+    //    {
+    //        // Catch exceptions here since the background thread won't always surface the exception to the main thread
+    //        Debug.Log(e.ToString());
+    //    }
+    //}
+
+    //bool SaveNote(ref string savePath)
+    //{
+    //    bool saveSuccess = false;
+
+    //    ToJson noteToJson = new ToJson();
+    //    noteToJson.noteInfos = new List<SpectralFluxInfo>(preProcessedSpectralFluxAnalyzer.peakList);
+    //    string json = JsonUtility.ToJson(noteToJson);
+    //    Debug.Assert(json != null, "Make json fail");
+    //    if (json == null)
+    //    {
+    //        return saveSuccess;
+    //    }
+
+    //    File.WriteAllText(savePath, json);
+    //    FileInfo fileInfo = new FileInfo(savePath);
+    //    if (fileInfo.Exists)
+    //    {
+    //        saveSuccess = true;
+    //        Debug.Log($"Save to {savePath + audioClip.name}");
+    //    }
+
+    //    Debug.Assert(saveSuccess, "Make note file fail");
+
+    //    return saveSuccess;
+    //}
+
+    //public int getIndexFromTime(float curTime)
+    //{
+    //    float lengthPerSample = audioClip.length / (float)audioClip.samples;
+
+    //    return Mathf.FloorToInt(curTime / lengthPerSample);
+    //}
+
+    //public float getTimeFromIndex(int index)
+    //{
+    //    return ((1f / (float)audioClip.frequency) * index);
+    //}
+
+    #endregion
 }

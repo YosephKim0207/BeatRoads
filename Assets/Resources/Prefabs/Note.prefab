@@ -112,3 +112,9 @@ MonoBehaviour:
   surviveTime: 0
   endTime: 0
   startTime: 0
+  fullLength: 0
+  halfLength: 0
+  judgeEnterTime: 0
+  judgeExitTime: 0
+  guessThroughTime: 0
+  realThroughTime: 0

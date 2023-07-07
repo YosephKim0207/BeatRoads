@@ -18,7 +18,12 @@ public class Note : MonoBehaviour
     public float surviveTime = 0.0f;
     public float endTime;
     public float startTime;
+    public float fullLength;
     public float halfLength;
+    public float judgeEnterTime;
+    public float judgeExitTime;
+    public float guessThroughTime;
+    public float realThroughTime;
 
     private void Awake()
     {
@@ -35,6 +40,7 @@ public class Note : MonoBehaviour
         
         dest.x = transform.position.x;
         surviveTime = 0.0f;
+
     }
 
 

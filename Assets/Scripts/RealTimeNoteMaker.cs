@@ -19,7 +19,10 @@ public class RealTimeNoteMaker : MonoBehaviour
     GameObject notePrefab;
 
     [SerializeField]
-    float noteScaleRatio = 15.0f;
+    const float noteScaleRatio = 15.0f;
+
+    [SerializeField]
+    const float audioStartTime = 3.0f;
 
     AudioSource audioSource;
     NoteInfos noteInfos;
@@ -27,15 +30,13 @@ public class RealTimeNoteMaker : MonoBehaviour
     Vector3 noteObjectPosition = new Vector3();
     Vector3 noteScale = new Vector3();
     float noteMakerZPos;
-    int prevNoteInfoIdx;
     int newNoteInfoIdx;
     float prevNoteStartTime;
-    float newNoteStartTime;
-    float curTime = 0.0f;
-    float noteStartTime = 0.0f;
-    float noteMoveTime = 2.0f;
-    float prevNoteThroghTime = 2.0f;
-    float prevNoteMakeTime;
+    float newNOteStartTime;
+    float curTime;
+    float noteStartTime;
+    const float noteMoveTime = 2.0f;
+    float prevNoteThroghTime;
 
     GameObject judgeObject;
     Vector3 judge = new Vector3();
@@ -64,73 +65,131 @@ public class RealTimeNoteMaker : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-
-        // 먼저 노트가 생성된다
-        // 노트가 플레이어 위치까지 오는 시점이 비트가 치는 시간이어야 한다
-        // JudgeLine 에 충돌판정 만들어서 충돌한 오브젝트 생성 시간이랑 충돌시간 구해서 이동시간이랑 속도 구하기
-
         curTime += Time.deltaTime;
 
-        //Debug.Log($"curTime{}")
-        if (!audioSource.isPlaying && curTime > 2.0f)
+        if (!audioSource.isPlaying && curTime - audioStartTime > 0 && newNoteInfoIdx < noteInfos.noteInfos.Count)
         {
             Debug.Log("Audio Play");
             audioSource.Play();
-            curTime = 0.0f;
+            prevNoteStartTime = noteInfos.noteInfos[newNoteInfoIdx].startTime;
         }
 
-        if (audioSource.time - prevNoteMakeTime > (prevNoteThroghTime))
+        // note가 judge까지 이동하는데 걸리는 시간 == noteMoveTime
+        // audio가 start 되기 noteMoveTime 시간 전에 노트가 생성되어야 note.startTime에 노트가 judge에 도착한다
+        if (curTime + noteMoveTime > audioStartTime)
         {
             if (newNoteInfoIdx >= noteInfos.noteInfos.Count)
             {
                 return;
             }
-            prevNoteStartTime = newNoteStartTime;
-            noteInfo = noteInfos.noteInfos[newNoteInfoIdx];
-            newNoteStartTime = noteInfo.startTime;
 
-            // scale된 노트들이 RealTimeNoteMaker을 넘지 않는 동일선상에 위치하도록 생성 position를 scale 기준으로 보정
-            noteObjectPosition.x = noteInfo.noteGridPosition;
-            Vector3 noteObjInitPos = new Vector3(noteInfo.noteGridPosition, 0.0f, noteMakerZPos);
-            float judgeDist = Vector3.Distance(judge, noteObjInitPos);
-
-            float noteSpeed = (judgeDist / noteMoveTime);
-
-            //float noteLength = (noteInfo.endTime - noteInfo.startTime) * noteScaleRatio;
-            //float noteLength = (noteInfo.endTime - noteInfo.startTime) / noteSpeed;
-            float noteLength = (newNoteStartTime - prevNoteStartTime) * noteSpeed;
-            //Debug.Log($"{i}'s NoteLength : {noteLength}");
-            noteObjectPosition.z = noteMakerZPos + (noteLength / 4.0f);
-            //Debug.Log($"{i}'s z Pos : {noteMakerZPos + (noteLength / 4.0f)}");
-            GameObject noteObject = Object.Instantiate(notePrefab, noteObjectPosition, Quaternion.identity);
-            prevNoteMakeTime = audioSource.time;
-
-            if (noteObject)
+            if (prevNoteStartTime + prevNoteThroghTime < audioSource.time + noteMoveTime)
             {
+                // scale된 노트들이 RealTimeNoteMaker을 넘지 않는 동일선상에 위치하도록 생성 position를 scale 기준으로 보정
+                noteInfo = noteInfos.noteInfos[newNoteInfoIdx];
+                noteObjectPosition.x = noteInfo.noteGridPosition;
+                Vector3 noteObjInitPos = new Vector3(noteInfo.noteGridPosition, 0.0f, noteMakerZPos);
 
+                // TODO GridPos를 input으로 받아서 내부에서 MakerToNoteDist를 구하고 속도를 반환하는 함수 만들 수 있지 않을까?
+                // note의 이동 속도 설정
                 judge.x = noteObjectPosition.x;
                 judge.y = 0.0f;
                 judge.z = judgeObject.transform.position.z;
-                //float judgeDist = Vector3.Distance(judge, noteObjectPosition);
-                //float noteArriveTime = noteInfo.endTime - noteInfo.startTime;
-                Note note = noteObject.GetComponent<Note>();
-                note.halfLength = noteLength;
-                note.SetSpeed = noteSpeed;
-                note.endTime = noteInfo.endTime;
-                note.startTime = noteInfo.startTime;
+                float NoteMakerToJudgeDist = Vector3.Distance(judge, noteObjInitPos);
+                float noteSpeed = (NoteMakerToJudgeDist / noteMoveTime);
 
-                noteScale.z = noteLength / 2.0f;
-                //Debug.Log($"{i}'s scale : {noteLength / 2.0f}");
-                noteObject.transform.localScale = noteScale;
-                prevNoteThroghTime = noteLength / noteSpeed;
-                curTime = 0.0f;
-                // 노트 오브젝트 풀 사용시 용도
-                //noteObject.SetActive(true);
+                // 노트의 길이 설정
+                float noteLength = (noteInfo.endTime - noteInfo.startTime) * noteSpeed;
 
-                ++newNoteInfoIdx;
+                // 모든 노트의 시작점이 RealTimeNoteMaker 좌표와 동일선이 되도록 한다 
+                noteObjectPosition.z = noteMakerZPos + (noteLength / 2.0f);
+                GameObject noteObject = Object.Instantiate(notePrefab, noteObjectPosition, Quaternion.identity);
+                //prevNoteStartTime = curTime;
+                prevNoteStartTime = noteInfo.startTime + noteMoveTime;
+                if (noteObject)
+                {
+                    noteObject.name = newNoteInfoIdx.ToString();
+
+                    Note note = noteObject.GetComponent<Note>();
+
+                    #region 디버그용 코드
+                    note.fullLength = noteLength;
+                    note.halfLength = noteLength;
+                    note.SetSpeed = noteSpeed;
+                    note.endTime = noteInfo.endTime;
+                    note.startTime = noteInfo.startTime;
+                    note.guessThroughTime = noteLength / noteSpeed;
+
+                    // audioSource의 timeSamples를 이용한 '현재 시간 계산'과 audioSource.time과 차이는 없었음
+                    //Debug.Log($"Use timeSaples : {((float)audioSource.timeSamples / (float)audioSource.clip.frequency)}, AudioTime : {audioSource.time}");
+                    #endregion
+
+                    noteScale.z = noteLength;
+                    noteObject.transform.localScale = noteScale;
+
+                    prevNoteThroghTime = noteLength / noteSpeed;
+
+                    // 노트 오브젝트 풀 사용시 용도
+                    //noteObject.SetActive(true);
+                    
+                    ++newNoteInfoIdx;
+                }
             }
 
         }
+
+
+
+
+        //if (audioSource.time - prevNoteMakeTime > (prevNoteThroghTime))
+        //{
+
+        //    prevNoteStartTime = newNoteStartTime;
+        //    noteInfo = noteInfos.noteInfos[newNoteInfoIdx];
+        //    newNoteStartTime = noteInfo.startTime;
+
+        //    // scale된 노트들이 RealTimeNoteMaker을 넘지 않는 동일선상에 위치하도록 생성 position를 scale 기준으로 보정
+        //    noteObjectPosition.x = noteInfo.noteGridPosition;
+        //    Vector3 noteObjInitPos = new Vector3(noteInfo.noteGridPosition, 0.0f, noteMakerZPos);
+        //    float judgeDist = Vector3.Distance(judge, noteObjInitPos);
+
+        //    float noteSpeed = (judgeDist / noteMoveTime);
+
+        //    //float noteLength = (noteInfo.endTime - noteInfo.startTime) * noteScaleRatio;
+        //    //float noteLength = (noteInfo.endTime - noteInfo.startTime) / noteSpeed;
+        //    float noteLength = (newNoteStartTime - prevNoteStartTime) * noteSpeed;
+        //    //Debug.Log($"{i}'s NoteLength : {noteLength}");
+        //    noteObjectPosition.z = noteMakerZPos + (noteLength / 4.0f);
+        //    //Debug.Log($"{i}'s z Pos : {noteMakerZPos + (noteLength / 4.0f)}");
+        //    GameObject noteObject = Object.Instantiate(notePrefab, noteObjectPosition, Quaternion.identity);
+        //    prevNoteMakeTime = audioSource.time;
+
+        //    if (noteObject)
+        //    {
+
+        //        judge.x = noteObjectPosition.x;
+        //        judge.y = 0.0f;
+        //        judge.z = judgeObject.transform.position.z;
+        //        //float judgeDist = Vector3.Distance(judge, noteObjectPosition);
+        //        //float noteArriveTime = noteInfo.endTime - noteInfo.startTime;
+        //        Note note = noteObject.GetComponent<Note>();
+        //        note.halfLength = noteLength;
+        //        note.SetSpeed = noteSpeed;
+        //        note.endTime = noteInfo.endTime;
+        //        note.startTime = noteInfo.startTime;
+
+        //        noteScale.z = noteLength / 2.0f;
+        //        //Debug.Log($"{i}'s scale : {noteLength / 2.0f}");
+        //        noteObject.transform.localScale = noteScale;
+        //        prevNoteThroghTime = noteLength / noteSpeed;
+        //        curTime = 0.0f;
+        //        // 노트 오브젝트 풀 사용시 용도
+        //        //noteObject.SetActive(true);
+
+        //        ++newNoteInfoIdx;
+        //    }
+
+        //}
 
     }
 }

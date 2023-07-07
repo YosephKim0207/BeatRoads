@@ -3,15 +3,21 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+[System.Serializable]
 public class SpectralFluxInfo {
-	public float time;
+	public float startTime;
+	public float endTime;
 	public float spectralFlux;
 	public float threshold;
 	public float prunedSpectralFlux;
 	public bool isPeak;
 }
 
+
 public class SpectralFluxAnalyzer {
+	[SerializeField]
+	public List<SpectralFluxInfo> peakList = new List<SpectralFluxInfo>();
+
 	int numSamples = 1024;
 
 	// Sensitivity multiplier to scale the average threshold.
@@ -49,7 +55,7 @@ public class SpectralFluxAnalyzer {
 
 		// Get current spectral flux from spectrum
 		SpectralFluxInfo curInfo = new SpectralFluxInfo();
-		curInfo.time = time;
+		curInfo.startTime = time;
 		curInfo.spectralFlux = calculateRectifiedSpectralFlux ();
 		//Debug.Log($"spectral Flux : {curInfo.spectralFlux}");
 		spectralFluxSamples.Add (curInfo);
@@ -69,6 +75,7 @@ public class SpectralFluxAnalyzer {
 
 			if (curPeak) {
 				spectralFluxSamples [indexToDetectPeak].isPeak = true;
+				peakList.Add(spectralFluxSamples[indexToDetectPeak]);
 			}
 			indexToProcess++;
 		}
@@ -122,13 +129,13 @@ public class SpectralFluxAnalyzer {
 		Debug.Log (string.Format (
 			"Peak detected at song time {0} with pruned flux of {1} ({2} over thresh of {3}).\n" +
 			"Thresh calculated on time window of {4}-{5} ({6} seconds) containing {7} samples.",
-			spectralFluxSamples [indexToLog].time,
+			spectralFluxSamples [indexToLog].startTime,
 			spectralFluxSamples [indexToLog].prunedSpectralFlux,
 			spectralFluxSamples [indexToLog].spectralFlux,
 			spectralFluxSamples [indexToLog].threshold,
-			spectralFluxSamples [windowStart].time,
-			spectralFluxSamples [windowEnd].time,
-			spectralFluxSamples [windowEnd].time - spectralFluxSamples [windowStart].time,
+			spectralFluxSamples [windowStart].startTime,
+			spectralFluxSamples [windowEnd].startTime,
+			spectralFluxSamples [windowEnd].startTime - spectralFluxSamples [windowStart].startTime,
 			windowEnd - windowStart
 		));
 	}
