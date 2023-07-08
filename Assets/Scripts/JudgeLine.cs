@@ -43,7 +43,7 @@ public class JudgeLine : MonoBehaviour
             curConflicTime = audioSource.time;
 
 
-            //Debug.Log($"{note.name}_ startTime : {note.startTime}, endTime : {note.endTime}, NoteTerm : {curStartTime - prevStartTime}, ConflictTerm : {curConflicTime - prevConflictTime}, SurviveTime : {note.surviveTime}");
+            Debug.Log($"{note.name}_ startTime : {note.startTime}, endTime : {note.endTime}, NoteTerm : {curStartTime - prevStartTime}, ConflictTerm : {curConflicTime - prevConflictTime}, SurviveTime : {note.surviveTime}");
             //Debug.Log($"{note.name}_ AudioPlayTime : {audioSource.time}, ConflictTime : {totalTime - 3.0f}");
             float absdd = Mathf.Abs(note.startTime - curConflicTime);
             Debug.Log($"{note.name}'s startTime : {note.startTime}, conflicTime : {curConflicTime}, Abs : {absdd}, DeltaTime : {deltaTime}");
@@ -66,7 +66,7 @@ public class JudgeLine : MonoBehaviour
             //Debug.Log($"NoteStartTime : {note.startTime}, ConflictTime : {totalTime}, AudioPlayTime : {audioSource.time}");
             //Debug.Log($"Note SurviveTime : {note.surviveTime}, Abs(endTime, startTime : {note.endTime - note.startTime}");
             note.realThroughTime = note.judgeExitTime - note.judgeEnterTime;
-            //Debug.Log($"{note.name}_ RealthroughTime : {note.realThroughTime}");
+            Debug.Log($"{note.name}_ RealthroughTime : {note.realThroughTime}");
         }
     }
 }

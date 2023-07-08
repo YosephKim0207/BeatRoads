@@ -102,7 +102,7 @@ public class PlayerMove : MonoBehaviour
     {
         int destGrid = NextPos();
         float dist = (float)destGrid - transform.position.x;
-        Debug.Log($"Dist : {dist}");
+        //Debug.Log($"Dist : {dist}");
         // 도착 
         if(Mathf.Abs(dist) < speed * Time.deltaTime)
         {
@@ -132,7 +132,7 @@ public class PlayerMove : MonoBehaviour
         {
             nextPlayerGrid = Mathf.Min(gameGridNumber - 1, curPlayerGrid + 1);
         }
-        Debug.Log($"Next Grid : {nextPlayerGrid}");
+        //Debug.Log($"Next Grid : {nextPlayerGrid}");
 
         return nextPlayerGrid;
     }
