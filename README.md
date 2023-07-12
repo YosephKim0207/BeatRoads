@@ -42,7 +42,7 @@
       >> 
       >> i.3 추가할 사항으로 노래의 bpm에 따른 판별식도 고려
 
-      ii. [기존의 코드](https://medium.com/giant-scam/algorithmic-beat-mapping-in-unity-real-time-audio-analysis-using-the-unity-api-6e9595823ce4) 활용시 해당 샘플의 비트는 잘 뽑아내지만 비트가 너무 많이 생성된다
+      ii. [기존의 코드](https://medium.com/giant-scam/algorithmic-beat-mapping-in-unity-real-time-audio-analysis-using-the-unity-api-6e9595823ce4) 활용시 해당 샘플의 비트는 잘 뽑아내지만 비트가 너무 많이 생성된다. 약간의 비트 오차 또한 존재한다. 
       - 기존의 방식 :
       >> ii.1 직전 프레임과 현재 프레임의 스펙트럼 음역대별 비교로 스펙트럼 증가분(flux) 합 계산
       >> 
@@ -69,7 +69,7 @@
       >> 
       >> sol3.  비트 갱신 최소 시간을 넘기는 비트를 기준으로 주변의 비트들 중 일정 시간 내의 비트들 중 가장 스펙트럼의 값이 큰 것을 비트로 결정한다
 
-2. 음악의 노트를 생성하고 직렬화하는 Tool 만들기
+2. 음악의 노트를 생성하고 직렬화하는 CustomTool 만들기
 
 3. 플레이어가 노트 이동하는 알고리즘 만들기 (그리드 이동하는 방식)
 
